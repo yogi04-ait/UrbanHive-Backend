@@ -120,8 +120,8 @@ backend/
 
 1. Clone the repository
    ```sh
-   git clone https://github.com/yogi04-ait/ecommerce-backend.git
-   cd ecommerce-backend
+   git clone https://github.com/yogi04-ait/UrbanHive-Backend.git
+   cd UrbanHive-Backend
    ```
 2. Install dependencies (To be updated as development progresses)
    ```sh
