@@ -1,28 +1,31 @@
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken')
+require('dotenv').config()
+const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
-    name:{
-        type:String,
-        required:true,
-        minLength:3,
-        maxLength:50
+    name: {
+        type: String,
+        required: true,
+        minLength: 3,
+        maxLength: 50
 
     },
-    email:{
-        type:String,
-        required:true,
-        unique:true,
-        trim:true
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true
     },
-    password:{
-        password:true,
-        required:true,
+    password: {
+        type: String,
+        required: true
     },
-    wishlist:{
-        type:Array,
+    wishlist: {
+        type: Array,
     },
-    
-},{timestamps:true})
+
+}, { timestamps: true })
 
 userSchema.pre('save', function (next) {
     if (this.name) {
@@ -32,7 +35,18 @@ userSchema.pre('save', function (next) {
     next();
 });
 
+userSchema.methods.getJWT = function () {
+    const user = this;
+    const token = jwt.sign({ _id: user._id }, process.env.SECRET_KEY, { expiresIn: "1d" });
+    return token;
 
+}
+
+userSchema.methods.validatePassword = async function (userInputPassword) {
+    const user = this;
+    const isValidPassword = await bcrypt.compare(userInputPassword, user.password)
+    return isValidPassword;
+}
 
 const User = mongoose.model('User', userSchema);
 
