@@ -1,7 +1,7 @@
 const validator = require('validator');
 
-const validateSignupData = (req) => {
-    const { name, email, password } = req.body;
+const validateSignupData = (req, isSeller = false) => {
+    const { name, email, password,shopName } = req.body;
     if (!name) {
         throw new Error("Name is not valid");
     }
@@ -11,6 +11,9 @@ const validateSignupData = (req) => {
 
     if (!password || !validator.isStrongPassword(password)) {
         throw new Error("Enter a strong password");
+    }
+    if (isSeller && !shopName ) {
+        throw new Error("Shop name is required")
     }
 }
 
