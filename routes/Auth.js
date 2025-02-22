@@ -55,42 +55,42 @@ authRouter.post("/logout", async (req, res) => {
     res.send("Logout Successful!!");
 });
 
-authRouter.post("/seller/signup", async (req,res)=>{
+authRouter.post("/seller/signup", async (req, res) => {
     try {
-        validateSignupData(req,true);
-        const { name, email, password, shopName} = req.body;
-        const hashedPassword = await bcrypt.hash(password,10);
-        const seller = new Seller({name, email, password:hashedPassword, shopName});
+        validateSignupData(req, true);
+        const { name, email, password, shopName } = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const seller = new Seller({ name, email, password: hashedPassword, shopName });
         const savedSeller = await seller.save();
         const { password: _, ...sellerWithoutPassword } = savedSeller.toObject();
         const token = savedSeller.getJWT();
-        res.cookie("sellerToken",token)
-        res.status(201).json({ message: "Seller registered successfully", data: sellerWithoutPassword});
-        
+        res.cookie("sellerToken", token)
+        res.status(201).json({ message: "Seller registered successfully", data: sellerWithoutPassword });
+
     } catch (error) {
         res.status(500).json({ message: "Internal Server Error", error: err.message })
 
     }
 })
 
-authRouter.post("/seller/login", async (req,res)=>{
+authRouter.post("/seller/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        const user = await Seller.findOne({email});
-        if(!user){
+        const user = await Seller.findOne({ email });
+        if (!user) {
             throw new Error("Invalid Credentials");
         }
         const isValidPassword = await user.validatePassword(password);
-        if(!isValidPassword){
+        if (!isValidPassword) {
             throw new Error("Invalid Credentials");
         }
         const token = user.getJWT();
-        const { password: _, ...sellerWithoutPassword } = user.toObject(); 
+        const { password: _, ...sellerWithoutPassword } = user.toObject();
         res.cookie("sellerToken", token);
         res.status(200).json({ message: "Logged in successfully", data: sellerWithoutPassword })
-        
+
     } catch (error) {
-        res.status(500).json({message:"Internal Server Error",error:error.message})
+        res.status(500).json({ message: "Internal Server Error", error: error.message })
     }
 })
 

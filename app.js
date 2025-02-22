@@ -1,12 +1,15 @@
 const express = require('express')
 const app = express();
+const cookieParser = require("cookie-parser");
 const connectDB = require('./config/database')
-const authRouter = require('./routes/auth')
+const authRouter = require('./routes/auth');
+const productRouter = require('./routes/product');
+const sellerRouter = require('./routes/seller')
+const customerRouter = require("./routes/customer")
 require('dotenv').config()
 app.use(express.json())
+app.use(cookieParser());
 
-const multer = require('multer')
-const upload = multer({ dest: 'uploads/' })
 
 connectDB().then(() => {
     app.listen(process.env.PORT, () => {
@@ -19,8 +22,6 @@ connectDB().then(() => {
 
 
 app.use("/", authRouter)
-
-app.post('/upload', upload.single('file'), function (req, res) {
-    res.json(req.file)
-})
-
+app.use("/", sellerRouter)
+app.use("/", productRouter)
+app.use("/", customerRouter)

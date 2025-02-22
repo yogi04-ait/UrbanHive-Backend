@@ -6,36 +6,37 @@ const User = require("../models/user")
 
 const sellerAuth = async (req, res, next) => {
     try {
-        const { sellerToken } = req.cookie;
+        const { sellerToken } = req.cookies;
         if (!sellerToken) {
             return res.status(401).send("Please login")
         }
-        const decoded = await jwt.verify(sellerToken, process.env.SECRET_KEY)
-        const seller = Seller.findById({ _id: decoded._id });
+        const decoded = jwt.verify(sellerToken, process.env.SECRET_KEY)
+        const seller = await Seller.findById(decoded._id);
 
         if (!seller) {
-            return res.status(401).send("User not found")
+            return res.status(401).json({ message: "Seller not found" });
         }
 
         req.user = seller;
         next()
 
     } catch (error) {
+        console.log(error)
         res.status(500).send("Internal Server Error")
     }
 }
 
-const customerAuth = async (req, res) => {
+const userAuth = async (req, res, next) => {
     try {
-        const { userToken } = req.cookie;
-        if (!userAuth) {
-            return res.status(401).send("Please login")
+        const { userToken } = req.cookies;
+        if (!userToken) {
+            return res.status(401).json({ message: "Please login" });
         }
-        const decoded = await jwt.verify(userToken, process.env.SECRET_KEY);
-        const user = await User.findById({ _id: decoded._id });
+        const decoded = jwt.verify(userToken, process.env.SECRET_KEY);
+        const user = await User.findById(decoded._id);
 
-        if(!user){
-                res.status(401).send("User not found")
+        if (!user) {
+            return res.status(401).json({ message: "User not found" });
         }
 
         req.user = user;
@@ -43,8 +44,9 @@ const customerAuth = async (req, res) => {
 
 
     } catch (error) {
-        res.status(500).send("Internal Server Error");
+        res.status(500).send("Internal Server Error")
     }
-} 
+}
 
-module.exports = {userAuth, sellerAuth}
+module.exports = { userAuth, sellerAuth };
+
