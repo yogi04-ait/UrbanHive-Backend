@@ -17,18 +17,18 @@ This is the backend for a full-stack e-commerce clothing website, built using **
 
 ### ✅ User Features (Planned & In Progress)
 
-- ✅ User **Signup/Login** (JWT Authentication)
-- [ ] **Wishlist Management** (Add/Remove products)
-- [ ] **Category-wise product browsing** (Men, Women, Kids, etc.)
-- [ ] **Sort by price** (Lowest First, Highest First)
+-  User **Signup/Login** (JWT Authentication)
+-  **Wishlist Management** (Add/Remove products)
+-  **Category-wise product browsing** (Men, Women, Kids, etc.)
+-  **Sort by price** (Lowest First, Highest First)
 - [ ] **Saved Addresses** (Manage multiple delivery addresses)
 - [ ] **Order Management** (Place and track orders)
 
 ### ✅ Seller Features (Planned & In Progress)
 
-- [ ] **Product Management** (Add, Edit, Delete products)
+-  **Product Management** (Add, Edit, Delete products)
 - [ ] **Orders Received** (View & update order status)
-- [ ] **Listed Products** (View seller’s added products)
+-  **Listed Products** (View seller’s added products)
 
 ---
 
