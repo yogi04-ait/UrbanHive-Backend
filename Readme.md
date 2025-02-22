@@ -17,7 +17,7 @@ This is the backend for a full-stack e-commerce clothing website, built using **
 
 ### ✅ User Features (Planned & In Progress)
 
-- [✅] User **Signup/Login** (JWT Authentication)
+- ✅ User **Signup/Login** (JWT Authentication)
 - [ ] **Wishlist Management** (Add/Remove products)
 - [ ] **Category-wise product browsing** (Men, Women, Kids, etc.)
 - [ ] **Sort by price** (Lowest First, Highest First)
