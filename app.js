@@ -6,6 +6,7 @@ const authRouter = require('./routes/auth');
 const productRouter = require('./routes/product');
 const sellerRouter = require('./routes/seller')
 const customerRouter = require("./routes/customer")
+const orderRouter = require("./routes/order")
 require('dotenv').config()
 app.use(express.json())
 app.use(cookieParser());
@@ -25,3 +26,4 @@ app.use("/", authRouter)
 app.use("/", sellerRouter)
 app.use("/", productRouter)
 app.use("/", customerRouter)
+app.use("/", orderRouter);

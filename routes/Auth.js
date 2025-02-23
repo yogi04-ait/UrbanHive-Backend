@@ -19,7 +19,6 @@ authRouter.post("/signup", async (req, res) => {
         res.status(201).json({ message: "User registered successfully", data: userWithoutPassword });
 
     } catch (err) {
-        console.error("Error during signup:", err);
         res.status(500).json({ message: "Internal Server Error", error: err.message })
     }
 })

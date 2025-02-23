@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken')
 require('dotenv').config()
 const bcrypt = require('bcrypt');
+const Address = require('./address.js');
+const Product = require('./product.js')
+const Order = require("./order.js")
 
 const userSchema = new mongoose.Schema({
     name: {
@@ -21,9 +24,25 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    wishlist: {
-        type: Array,
-    },
+    wishlist:[
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Product'
+            }
+        ],
+    address:[
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Address'
+        }
+    ],
+    orders:[
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Order',
+        }
+
+    ]
 
 }, { timestamps: true })
 

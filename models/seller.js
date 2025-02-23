@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken')
 require('dotenv').config()
 const bcrypt = require('bcrypt');
+const Product = require('./product')
 
 const sellerSchema = new mongoose.Schema({
     name: {
@@ -29,7 +30,12 @@ const sellerSchema = new mongoose.Schema({
     shopDescription: {
         type: String,
     },
-
+    products:[
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Product'
+        }
+    ]
 }, { timestamps: true })
 
 sellerSchema.pre('save', function (next) {

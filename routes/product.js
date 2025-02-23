@@ -11,7 +11,6 @@ productRouter.get("/products", async (req, res) => {
         const pageNumber = parseInt(page, 10);
         const limitNumber = parseInt(limit, 10);
         let filter = {}
-
         if (category) {
             filter.category = category
         }
