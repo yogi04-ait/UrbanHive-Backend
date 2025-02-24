@@ -15,85 +15,142 @@ const Address = require('../models/address')
 //     }
 // })
 
+
+
+
 orderRouter.post("/order", userAuth, async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
         const user = req.user;
-        const { orderItems, shippingAddress, isPaid, paymentMethod, status } = req.body;
+        const { orderItems, shippingAddress, isPaid, paymentMethod } = req.body;
 
         const address = await Address.findById(shippingAddress).session(session);
         if (!address) {
-            await session.abortTransaction(); // Rollback
+            await session.abortTransaction();
             session.endSession();
             return res.status(404).json({ message: "Address not found" });
         }
-        let totalAmount = 0;
 
-        const updatedOrderItems = [];
+        let totalAmount = 0;
+        const sellerOrders = new Map(); // To group items by seller
+
         for (let item of orderItems) {
             const product = await Product.findById(item.productId).session(session);
             if (!product) {
-                await session.abortTransaction(); // Rollback
+                await session.abortTransaction();
                 session.endSession();
-                return res.status(404).json({ message: "Product not found" });
+                return res.status(404).json({ message: `Product not found` });
             }
 
-            // Find the size object for the selected size
-            const size = product.sizes.find(s => s.size === item.size)
-            if (!size) {
-                await session.abortTransaction(); // Rollback
+            const size = product.sizes.find(s => s.size === item.size);
+            if (!size || size.quantity < item.quantity) {
+                await session.abortTransaction();
                 session.endSession();
-                return res.status(404).json({ message: "Size not available" });
+                return res.status(400).json({ message: `Stock not available for ${item.size} of ${product.name}` });
             }
-            // check for stock
-            if (size.quantity < item.quantity) {
-                await session.abortTransaction(); // Rollback
-                session.endSession();
-                return res.status(400).json({ message: ` ${item.size} size not available for ${item.name}` });
-            }
-            const productPrice = product.price
-            totalAmount += productPrice * item.quantity;
 
-            updatedOrderItems.push({
+            // Deduct stock inside transaction
+            size.quantity -= item.quantity;
+            await product.save({ session });
+
+            // Group items by seller
+            if (!sellerOrders.has(product.seller.toString())) {
+                sellerOrders.set(product.seller.toString(), {
+                    seller: product.seller,
+                    orderItems: [],
+                    totalAmount: 0,
+                    status: "pending",
+                });
+            }
+
+            const sellerOrder = sellerOrders.get(product.seller.toString());
+            sellerOrder.orderItems.push({
                 productId: item.productId,
                 size: item.size,
                 quantity: item.quantity,
-                productPrice,
+                productPrice: product.price,
             });
+            sellerOrder.totalAmount += product.price * item.quantity;
 
-            // update stock
-            size.quantity -= item.quantity;
-            await product.save({ session });
+            totalAmount += product.price * item.quantity;
         }
 
-        //create order
+        // Convert sellerOrders map to array
+        const subOrders = Array.from(sellerOrders.values());
+
+        // Create order with grouped sub-orders
         const order = new Order({
             user: user._id,
-            orderItems: updatedOrderItems,
             shippingAddress: address,
             totalAmount,
             isPaid,
             paymentMethod,
-            status
+            subOrders,
+        });
 
-        })
-
-        await order.save({ session }); // Save order within transaction
+        await order.save({ session });
         user.orders.push(order._id);
         await user.save({ session });
-        await session.commitTransaction(); // Commit the transaction
+
+        await session.commitTransaction();
         session.endSession();
 
-        res.status(200).json({ message: "Order placed successfully", order: order })
+        res.status(200).json({ message: "Order placed successfully", order });
 
     } catch (error) {
-        await session.abortTransaction(); // Rollback on error
+        await session.abortTransaction();
         session.endSession();
         console.error(error);
         res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
-})
+});
+
+orderRouter.get("/user/orders", userAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const orders = await Order.find({ user: user._id }).populate("subOrders.seller", "name email");
+
+        if (!orders.length) {
+            return res.status(404).json({ message: "No orders found" });
+        }
+
+        res.status(200).json({ message: "User orders fetched successfully", orders });
+
+    } catch (error) {
+        res.status(500).json({ message: "Internal Server Error", error: error.message });
+    }
+});
+
+orderRouter.get("/seller/orders", sellerAuth, async (req, res) => {
+    try {
+        const seller = req.user;
+        const orders = await Order.find({ "subOrders.seller": seller._id })
+            .populate("user", "name email")
+            .populate("subOrders.orderItems")
+
+        if (!orders.length) {
+            return res.status(404).json({ message: "No orders found for this seller" });
+        }
+
+        // Filter only the relevant subOrders for this seller
+        const sellerOrders = orders.map(order => ({
+            _id: order._id,
+            user: order.user,
+            createdAt: order.createdAt,
+            subOrders: order.subOrders.filter(sub => sub.seller.toString() === seller._id.toString()),
+        }));
+
+        res.status(200).json({ message: "Seller orders fetched successfully", orders: sellerOrders });
+
+    } catch (error) {
+        res.status(500).json({ message: "Internal Server Error", error: error.message });
+    }
+});
+
+
+
+
 
 orderRouter.patch("/user/order/:orderId", userAuth, async (req, res) => {
     try {
