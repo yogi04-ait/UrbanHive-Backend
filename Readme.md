@@ -1,4 +1,4 @@
-# 🛍️ E-Commerce Clothing Platform - Backend
+# 🛍️ URBANHIVE E-Commerce Clothing Platform - (Backend)
 
 ## 📌 Project Overview
 
