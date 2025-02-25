@@ -1,225 +1,256 @@
 const express = require('express');
-const { userAuth, sellerAuth } = require('../middlewares/auth');
-const mongoose = require('mongoose')
-const Product = require('../models/product');
-const Order = require('../models/order');
+const mongoose = require('mongoose');
 const orderRouter = express.Router();
-const Address = require('../models/address')
-
-// orderRouter.get("/status/:orderId",userAuth,async (req,res)=>{
-//     try {
-
-
-//     } catch (error) {
-//         res.status(500).json({message:error.message})
-//     }
-// })
-
-
-
+const Order = require('../models/order');
+const OrderItem = require('../models/orderItem');
+const Product = require('../models/product');
+const { userAuth, sellerAuth } = require('../middlewares/auth');
+const Address = require('../models/address');
+const Seller = require('../models/seller');
 
 orderRouter.post("/order", userAuth, async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
+
     try {
         const user = req.user;
-        const { orderItems, shippingAddress, isPaid, paymentMethod } = req.body;
+        const { orderItems, addressId, paymentMethod, isPaid } = req.body;
 
-        const address = await Address.findById(shippingAddress).session(session);
+        // Verify Address 
+        const address = await Address.findById(addressId).session(session);
         if (!address) {
-            await session.abortTransaction();
-            session.endSession();
-            return res.status(404).json({ message: "Address not found" });
+            throw new Error("Address not found");
         }
+        const { user:_, _id, ...addressDetails } = address.toObject();
 
         let totalAmount = 0;
-        const sellerOrders = new Map(); // To group items by seller
+        const orderItemIds = [];
+        const sellerOrderMap = {}; // Store seller orders separately
 
-        for (let item of orderItems) {
+        // Create Order (Empty initially)
+        const newOrder = new Order({
+            user: user._id,
+            shippingAddress: addressDetails,
+            orderItems: [],
+            paymentMethod,
+            isPaid,
+            status: "pending",
+            totalAmount: 0
+        });
+
+        await newOrder.save({ session });
+
+        // Process Order Items
+        for (const item of orderItems) {
             const product = await Product.findById(item.productId).session(session);
             if (!product) {
-                await session.abortTransaction();
-                session.endSession();
-                return res.status(404).json({ message: `Product not found` });
+                throw new Error(`Product ${item.product} not found`);
             }
 
-            const size = product.sizes.find(s => s.size === item.size);
-            if (!size || size.quantity < item.quantity) {
-                await session.abortTransaction();
-                session.endSession();
-                return res.status(400).json({ message: `Stock not available for ${item.size} of ${product.name}` });
+            // Verify size availability
+            const selectedSize = product.sizes.find(s => s.size === item.size);
+            if (!selectedSize || selectedSize.quantity < item.quantity) {
+                throw new Error(`Not enough stock for ${product.name} (Size: ${item.size})`);
             }
 
-            // Deduct stock inside transaction
-            size.quantity -= item.quantity;
+            // Update stock
+            selectedSize.quantity -= item.quantity;
             await product.save({ session });
 
-            // Group items by seller
-            if (!sellerOrders.has(product.seller.toString())) {
-                sellerOrders.set(product.seller.toString(), {
-                    seller: product.seller,
-                    orderItems: [],
-                    totalAmount: 0,
-                    status: "pending",
-                });
-            }
+            const total = item.quantity * product.price;
+            totalAmount += total;
 
-            const sellerOrder = sellerOrders.get(product.seller.toString());
-            sellerOrder.orderItems.push({
-                productId: item.productId,
+            // Create OrderItem
+            const newOrderItem = new OrderItem({
+                order: newOrder._id,
+                product: product._id,
+                seller: product.seller,
                 size: item.size,
                 quantity: item.quantity,
                 productPrice: product.price,
+                total,
+                status: "pending"
             });
-            sellerOrder.totalAmount += product.price * item.quantity;
 
-            totalAmount += product.price * item.quantity;
+            await newOrderItem.save({ session });
+            orderItemIds.push(newOrderItem._id);
+
+            // Store seller order items in a map
+            if (!sellerOrderMap[product.seller]) {
+                sellerOrderMap[product.seller] = [];
+            }
+            sellerOrderMap[product.seller].push(newOrderItem._id);
         }
 
-        // Convert sellerOrders map to array
-        const subOrders = Array.from(sellerOrders.values());
+        // Update Order with OrderItems and Total Amount
+        newOrder.orderItems = orderItemIds;
+        newOrder.totalAmount = totalAmount;
+        await newOrder.save({ session });
 
-        // Create order with grouped sub-orders
-        const order = new Order({
-            user: user._id,
-            shippingAddress: address,
-            totalAmount,
-            isPaid,
-            paymentMethod,
-            subOrders,
-        });
-
-        await order.save({ session });
-        user.orders.push(order._id);
+        user.orders.push(newOrder._id);
         await user.save({ session });
 
+        //  Update Seller Orders in One Batch
+        const sellerUpdates = Object.keys(sellerOrderMap).map(sellerId =>
+            Seller.findByIdAndUpdate(sellerId, {
+                $push: { orders: { $each: sellerOrderMap[sellerId] } }
+            }, { session })
+        );
+
+        await Promise.all(sellerUpdates);
+
+        // Commit the Transaction
         await session.commitTransaction();
         session.endSession();
 
-        res.status(200).json({ message: "Order placed successfully", order });
+        res.status(201).json({ message: "Order placed successfully", order: newOrder });
 
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
-        console.error(error);
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
+        res.status(500).json({ message: error.message });
     }
 });
 
-orderRouter.get("/user/orders", userAuth, async (req, res) => {
+
+orderRouter.get("/user/orders", userAuth, async (req,res)=>{
     try {
         const user = req.user;
-        const orders = await Order.find({ user: user._id }).populate("subOrders.seller", "name email");
+        const {page=1, limit=10} = req.query;
 
-        if (!orders.length) {
-            return res.status(404).json({ message: "No orders found" });
-        }
+        const orders = await Order.find({ user: user._id })
+                        .select("order._id shippingAddress totalAmount paymentMethod status createdAt ")
+                        .sort({createdAt:-1})
+                        .limit(limit*1)
+                        .skip((page-1)*limit)
+                        .populate({
+                            path:"orderItems",
+                            select: "quantity size  total status",
+                            populate:{
+                                path:"product",
+                                select: "name images price"
+                            }
+                        })
 
-        res.status(200).json({ message: "User orders fetched successfully", orders });
+        res.status(200).json({orders });
 
     } catch (error) {
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
+        res.status(500).json({message:error.message})
     }
-});
+})
 
-orderRouter.get("/seller/orders", sellerAuth, async (req, res) => {
+orderRouter.get("/user/cancel", userAuth, async (req,res)=>{
+    try {
+        const user = req.user;
+        const {orderId, itemIds, cancelAll = false} = req.query;
+        
+        const order = await Order.findById(orderId);
+        if(!order){
+            return res.send(404).json({message:"Order not found"})
+        }
+        if (order.user.toString() !== user._id.toString()){
+            return res.send(401).json({message:"You're not authorized to cancel this order"})
+        }
+
+        if (order.status === "delivered") {
+            return res.status(400).json({ message: "You cannot cancel a delivered order." });
+        }
+        if (order.status === "cancelled") {
+            return res.status(400).json({ message: "This order has already been cancelled." });
+        }
+
+        let itemsToCancel = [];
+
+
+        if (cancelAll === "true") {
+            itemsToCancel = order.orderItems;
+        } else {
+            if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0) {
+                return res.status(400).json({ message: "Invalid itemIds" });
+            }
+            itemsToCancel = itemIds;
+        }
+
+        const existingItems = await OrderItem.find({_id:{$in:itemsToCancel}});
+
+        const nonCancellableItems = existingItems.filter(item=>{
+                item.status === "delivered" || item.status === "cancelled"
+        }
+        );
+
+        if(nonCancellableItems.length > 0){
+            return res.status(400).json({
+                message: "Some items cannot be cancelled as they are already delivered or cancelled.",
+                nonCancellableItems
+            });
+        }
+
+        await OrderItem.updateMany(
+            { _id: { $in: itemsToCancel } },
+            { $set: { status: "cancelled" } }
+        );
+
+        const remainingItems = await OrderItem.countDocuments({
+            order: orderId,
+            status: { $ne: "cancelled" }
+        });
+
+        if (remainingItems === 0) {
+            order.status = "cancelled";
+        }
+
+        await order.save();
+        return res.status(200).json({ message: "Order cancelled successfully" });
+    
+
+    } catch (error) {
+        res.status(500).send({message:error.message})
+    }
+} )
+
+orderRouter.patch("/seller/update-status", sellerAuth, async (req, res) => {
     try {
         const seller = req.user;
-        const orders = await Order.find({ "subOrders.seller": seller._id })
-            .populate("user", "name email")
-            .populate("subOrders.orderItems")
+        const { itemId, status } = req.body;
 
-        if (!orders.length) {
-            return res.status(404).json({ message: "No orders found for this seller" });
+        // Validate request
+        if (!itemId ) {
+            return res.status(400).json({ message: "Invalid itemId" });
+        }
+        if (!["shipped", "delivered", "cancelled"].includes(status)) {
+            return res.status(400).json({ message: "Invalid status update" });
         }
 
-        // Filter only the relevant subOrders for this seller
-        const sellerOrders = orders.map(order => ({
-            _id: order._id,
-            user: order.user,
-            createdAt: order.createdAt,
-            subOrders: order.subOrders.filter(sub => sub.seller.toString() === seller._id.toString()),
-        }));
+        // Find order that belong to this seller
+        const order = await OrderItem.findById(itemId);
 
-        res.status(200).json({ message: "Seller orders fetched successfully", orders: sellerOrders });
+
+        if (!order) {
+            return res.status(404).json({ message: "No matching order found" });
+        }
+
+        if(order.seller.toString() !== seller._id.toString()){
+            return res.status(403).json({message:"Unauthorized: This order does not belong to you"})
+        }
+
+        if(order.status == status){
+            return res.status(400).json({ message: "Order status is already updated" });
+        }
+
+        // Check if order already cancelled or delivered
+        if (order.status === 'cancelled' || order.status === 'delivered'){
+            return res.status(400).json({ message: `Order is already marked as ${status}` });
+        }
+
+        // Update order status
+        order.status = status;
+        await order.save();
+        return res.status(200).json({ message: `Order updated to ${status} successfully` });
 
     } catch (error) {
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
+        res.status(500).json({ message: error.message });
     }
 });
 
 
-
-
-
-orderRouter.patch("/user/order/:orderId", userAuth, async (req, res) => {
-    try {
-        const user = req.user;
-        const { status } = req.body;
-        const orderId = req.params.orderId;
-        const order = await Order.findById(orderId)
-        if (!order) {
-            return res.status(404).json({ message: "Order not found" });
-        }
-
-        if (order.user.toString() !== user._id.toString()) {
-            return res.status(401).json({ message: "Unauthorized: You can only cancel your own orders" });
-
-        }
-
-
-        if (status !== "cancelled") {
-            return res.status(400).json({ message: "Users can only cancel order" });
-        }
-
-        if (order.status === "delivered") {
-            return res.status(400).json({ message: "Order is already delivered" });
-        } else if (order.status === "cancelled") {
-            return res.status(400).json({ message: "Order is already cancelled" });
-        }
-
-        order.status = status;
-        await order.save();
-        res.status(200).json({ message: "Order status updated successfully", order: order });
-
-    } catch (error) {
-        res.status(500).json({ message: "Internal Server Error", error: error.message })
-    }
-})
-
-orderRouter.patch("/seller/order/:orderId", sellerAuth, async (req, res) => {
-    try {
-        const { status } = req.body;
-        const orderId = req.params.orderId;
-        const order = await Order.findById(orderId);
-        if (!order) {
-            return res.status(404).json({ message: "Order not found" });
-        }
-        if (order.status === "delivered") {
-            return res.status(400).json({ message: "Order is already delivered" });
-        }
-
-        if (order.status === status) {
-            return res.status(400).json({ message: "Order is already in this status" });
-        }
-
-        if (!["shipped", "delivered", "cancelled"].includes(status)) {
-            return res.status(400).json({ message: "Invalid status" });
-        }
-
-        if (order.status === "cancelled") {
-            return res.status(400).json({ message: "Cannot update a cancelled order" });
-        }
-
-
-
-        order.status = status;
-        await order.save();
-        res.status(200).json({ message: `Order status updated to ${status} successfully`, order })
-
-    } catch (error) {
-        res.status(500).json({ message: "Internal Server Error", error: error.message });
-    }
-})
-
-module.exports = orderRouter
+module.exports = orderRouter;

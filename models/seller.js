@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken')
 require('dotenv').config()
 const bcrypt = require('bcrypt');
-const Product = require('./product')
+const Product = require('./product');
+const User = require('./user');
+const OrderItem = require('./orderItem')
 
 const sellerSchema = new mongoose.Schema({
     name: {
@@ -30,10 +32,16 @@ const sellerSchema = new mongoose.Schema({
     shopDescription: {
         type: String,
     },
-    products:[
+    products: [
         {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Product'
+        }
+    ],
+    orders: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'OrderItem'
         }
     ]
 }, { timestamps: true })
@@ -44,6 +52,9 @@ sellerSchema.pre('save', function (next) {
     }
     if (this.shopName) {
         this.shopName = this.shopName.trim().replace(/\s+/g, ' ');
+    }
+    if(this.orders.length > 20){
+        this.orders = this.orders.slice(-20);
     }
     next();
 })

@@ -41,7 +41,6 @@ const userSchema = new mongoose.Schema({
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Order',
         }
-
     ]
 
 }, { timestamps: true })
@@ -51,8 +50,12 @@ userSchema.pre('save', function (next) {
         // Remove leading/trailing spaces and replace multiple spaces with a single space
         this.name = this.name.trim().replace(/\s+/g, ' ');
     }
+    if(this.orders.length > 10){
+        this.orders = this.orders.slice(-10);
+    }
     next();
 });
+
 
 userSchema.methods.getJWT = function () {
     const user = this;
