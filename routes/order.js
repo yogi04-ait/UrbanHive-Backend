@@ -47,6 +47,10 @@ orderRouter.post("/order", userAuth, async (req, res) => {
                 throw new Error(`Product ${item.product} not found`);
             }
 
+            if(product.isDeleted){
+                throw new Error(`${product.name} is deleted`);
+            }
+
             // Verify size availability
             const selectedSize = product.sizes.find(s => s.size === item.size);
             if (!selectedSize || selectedSize.quantity < item.quantity) {
