@@ -9,7 +9,7 @@ This is the backend for a **multi-seller e-commerce clothing platform**, built u
 - **Backend:** Node.js, Express.js
 - **Database:** MongoDB (Mongoose ODM)
 - **Authentication:** JWT (JSON Web Tokens)
-- **Storage:** (To be integrated, likely Cloudinary or AWS S3 for product images)
+- **Storage:** Integrated with Cloudinary for product image storage.
 
 ---
 
