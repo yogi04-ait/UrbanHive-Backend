@@ -64,9 +64,6 @@ productRouter.get("/product/:id", async (req, res) => {
         if (!product) {
            return res.status(404).json({ message: "Item not found" })
         }
-        if(product.isDeleted){
-            return res.status(404).json({message:"product is deleted by seller"})
-        }
 
         res.status(200).json(product)
     } catch (error) {
@@ -95,7 +92,7 @@ productRouter.delete("/product/:id", sellerAuth, async (req,res)=>{
 
         // check if product is deleted or not
         if(product.isDeleted){
-            return res.status(404).json({message:"product is deleted by seller"})
+            return res.status(404).json({message:"product is already deleted by seller"})
         }
 
         product.isDeleted = true;

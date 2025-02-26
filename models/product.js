@@ -55,14 +55,24 @@ const productSchema = new mongoose.Schema({
             }
         }
     ],
-    images: {
-        type: [String],
-        required: true
-    },
-    isDeleted: { type: Boolean, default: false }, 
+    images: [
+        {
+            publicId: {
+                type: String,
+                required: true
+            },
+
+            imageUrls: {
+                type: String,
+                required: true
+            }
+        }
+    ],
+
+    isDeleted: { type: Boolean, default: false },
 
 
-},{timestamps:true})
+}, { timestamps: true })
 
 const Product = mongoose.model('Product', productSchema);
 
