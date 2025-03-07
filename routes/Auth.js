@@ -18,8 +18,11 @@ authRouter.post("/signup", async (req, res) => {
         res.cookie("userToken", token);
         res.status(201).json({ message: "User registered successfully", data: userWithoutPassword });
 
-    } catch (err) {
-        res.status(500).json({ message: "Internal Server Error", error: err.message })
+    } catch (error) {
+        if (error.code === 11000) {
+            return res.status(400).json({ message: "User already exists", error: "email already registered" })
+        }
+        res.status(500).json({ message: "Internal Server Error", error: error.message })
     }
 })
 
@@ -47,7 +50,7 @@ authRouter.post("/login", async (req, res) => {
     }
 })
 
-authRouter.post("/logout", async (req, res) => {
+authRouter.get("/logout", async (req, res) => {
     res.cookie("userToken", null, {
         expires: new Date(0),
     });
@@ -66,9 +69,12 @@ authRouter.post("/seller/signup", async (req, res) => {
         res.cookie("sellerToken", token)
         res.status(201).json({ message: "Seller registered successfully", data: sellerWithoutPassword });
 
-    } catch (error) {
-        res.status(500).json({ message: "Internal Server Error", error: err.message })
 
+    } catch (error) {
+        if (error.code === 11000) {
+            return res.status(400).json({ message: "User already exists", error: "email already registered" })
+        }
+        res.status(500).json({ message: "Internal Server Error", error: error.message })
     }
 })
 
@@ -93,7 +99,7 @@ authRouter.post("/seller/login", async (req, res) => {
     }
 })
 
-authRouter.post("/seller/logout", async (req, res) => {
+authRouter.get("/seller/logout", async (req, res) => {
     res.cookie("sellerToken", null, {
         expires: new Date(0),
     });

@@ -7,35 +7,49 @@ const Product = require("../models/product");
 const Address = require("../models/address");
 const User = require('../models/user');
 const bcrypt = require('bcrypt')
-const {validateSignupData} =  require("../utils/validator.js")
+const { validateSignupData } = require("../utils/validator.js")
 
-customerRouter.patch("/edit/profile", userAuth, async (req,res)=>{
+customerRouter.patch("/edit/profile", userAuth, async (req, res) => {
     try {
         const user = req.user;
         let updatedUser;
-        const {name, email, oldPassword, newPassword} = req.body;
-        if(newPassword){
+        const { name, email, oldPassword, newPassword } = req.body;
+        if (newPassword) {
             const isValidPassword = await user.validatePassword(oldPassword);
-            validateSignupData({name,email,password:newPassword});
-            if(isValidPassword){
-                 const hashedPassword = await bcrypt.hash(newPassword,10);
-                 updatedUser = await User.findByIdAndUpdate(user._id,{name,email,password:hashedPassword},{new:true})
+            validateSignupData({ name, email, password: newPassword });
+            if (isValidPassword) {
+                const hashedPassword = await bcrypt.hash(newPassword, 10);
+                updatedUser = await User.findByIdAndUpdate(user._id, { name, email, password: hashedPassword }, { new: true })
 
-            }else{
-                res.status(401).json({message:"Incorrect old password"})
+            } else {
+                res.status(401).json({ message: "Incorrect old password" })
             }
-        }else{
-            validateSignupData({name,email});
-            updatedUser = await User.findByIdAndUpdate(user._id,{name,email},{new:true});
+        } else {
+            validateSignupData({ name, email });
+            updatedUser = await User.findByIdAndUpdate(user._id, { name, email }, { new: true });
         }
-        const { password: _, ...userWithoutPassword } =  updatedUser.toObject();
-        
-        res.status(200).json({ message: "profile updated successfully" ,user:userWithoutPassword})
+        const { password: _, ...userWithoutPassword } = updatedUser.toObject();
+
+        res.status(200).json({ message: "profile updated successfully", user: userWithoutPassword })
 
     } catch (error) {
-        res.status(500).json({message:error.message})
+        res.status(500).json({ message: error.message })
     }
 })
+
+customerRouter.get("/profile", userAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const { password: _, ...userWithoutPassword } = user.toObject();
+        res.status(201).json({ message: "User fetched successfully", data: userWithoutPassword });
+
+
+    } catch (error) {
+        res.status(400).send("Error : " + error.message)
+    }
+})
+
+
 customerRouter.get("/wishlist", userAuth, async (req, res) => {
     try {
         const user = req.user;

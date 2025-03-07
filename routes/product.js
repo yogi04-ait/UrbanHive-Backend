@@ -2,7 +2,7 @@ const express = require('express');
 const productRouter = express.Router();
 const Product = require('../models/product')
 const mongoose = require('mongoose')
-const {sellerAuth} = require("../middlewares/auth")
+const { sellerAuth } = require("../middlewares/auth")
 
 
 productRouter.get("/products", async (req, res) => {
@@ -27,7 +27,7 @@ productRouter.get("/products", async (req, res) => {
         }
 
         const skip = (pageNumber - 1) * limitNumber
-        const products = await Product.find({...filter,isDeleted:false})
+        const products = await Product.find({ ...filter, isDeleted: false })
             .sort(sortOrder)
             .skip(skip)
             .limit(limitNumber)
@@ -62,7 +62,7 @@ productRouter.get("/product/:id", async (req, res) => {
         const product = await Product.findById(id)
 
         if (!product) {
-           return res.status(404).json({ message: "Item not found" })
+            return res.status(404).json({ message: "Item not found" })
         }
 
         res.status(200).json(product)
@@ -71,7 +71,7 @@ productRouter.get("/product/:id", async (req, res) => {
     }
 })
 
-productRouter.delete("/product/:id", sellerAuth, async (req,res)=>{
+productRouter.delete("/product/:id", sellerAuth, async (req, res) => {
     try {
         const seller = req.user;
         const id = req.params.id
@@ -81,26 +81,26 @@ productRouter.delete("/product/:id", sellerAuth, async (req,res)=>{
         const product = await Product.findById(id)
 
         // check product available or not
-        if(!product){
-            return res.status(404).json({message:"Item not found" })
+        if (!product) {
+            return res.status(404).json({ message: "Item not found" })
         }
 
         // check if user listed this product or not
-        if(product.seller.toString() !== seller._id){
-            return res.status(403).json({message:"You are not the seller of this product"})
+        if (product.seller.toString() !== seller._id.toString()) {
+            return res.status(403).json({ message: "You are not the seller of this product" })
         }
 
         // check if product is deleted or not
-        if(product.isDeleted){
-            return res.status(404).json({message:"product is already deleted by seller"})
+        if (product.isDeleted) {
+            return res.status(404).json({ message: "product is already deleted by seller" })
         }
 
         product.isDeleted = true;
         await product.save()
-        res.status(200).json({message:"product deleted successfully"})
-        
+        res.status(200).json({ message: "product deleted successfully" })
+
     } catch (error) {
-        res.status(500).json({message:error.message})
+        res.status(500).json({ message: error.message })
     }
 })
 
