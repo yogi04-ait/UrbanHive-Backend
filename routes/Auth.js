@@ -32,11 +32,11 @@ authRouter.post("/login", async (req, res) => {
         const user = await User.findOne({ email });
 
         if (!user) {
-            throw new Error("Invalid Credentials")
+             throw new Error("Invalid Credentials")
         }
         const isValidPassword = await user.validatePassword(password)
         if (!isValidPassword) {
-            throw new Error("Invalid Credentials")
+             throw new Error("Invalid Credentials")
         }
 
         const token = user.getJWT();
@@ -45,7 +45,7 @@ authRouter.post("/login", async (req, res) => {
         res.status(200).json({ message: "User logged in successfully", data: userWithoutPassword });
 
     } catch (err) {
-        console.error("Error during signup:", err);
+        console.error("Error during:", err);
         res.status(500).json({ message: "Internal Server Error", error: err.message });
     }
 })

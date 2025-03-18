@@ -11,22 +11,38 @@ const statesAndUTsEnum = [
     "Ladakh", "Lakshadweep", "Delhi", "Puducherry"
 ];
 
-const validateSignupData = (req, isSeller = false) => {
+const validateSignupData = (req, isUpdate = false, isSeller = false) => {
     const { name, email, password, shopName } = req.body;
-    if (!name) {
+
+    if (!isUpdate) {
+        if (!name) {
+            throw new Error("Name is required");
+        }
+        if (!email || !validator.isEmail(email)) {
+            throw new Error("Email is not valid");
+        }
+        if (!password || !validator.isStrongPassword(password)) {
+            throw new Error("Enter a strong password");
+        }
+    }
+
+    if (name && !name.trim()) {
         throw new Error("Name is not valid");
     }
-    if (!email || !validator.isEmail(email)) {
+
+    if (email && !validator.isEmail(email)) {
         throw new Error("Email is not valid");
     }
 
-    if (!password || !validator.isStrongPassword(password)) {
+    if (password && !validator.isStrongPassword(password)) {
         throw new Error("Enter a strong password");
     }
-    if (isSeller && !shopName) {
-        throw new Error("Shop name is required")
+
+    if (isSeller && shopName && !shopName.trim()) {
+        throw new Error("Shop name is required");
     }
-}
+};
+
 
 const validateAddress = (data) => {
 

@@ -11,7 +11,6 @@ const Seller = require('../models/seller');
 orderRouter.post("/order", userAuth, async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
-
     try {
         const user = req.user;
         const { orderItems, addressId, paymentMethod, isPaid } = req.body;
@@ -21,7 +20,7 @@ orderRouter.post("/order", userAuth, async (req, res) => {
         if (!address) {
             throw new Error("Address not found");
         }
-        const { user:_, _id, ...addressDetails } = address.toObject();
+        const { user: _, _id, ...addressDetails } = address.toObject();
 
         let totalAmount = 0;
         const orderItemIds = [];
@@ -47,7 +46,7 @@ orderRouter.post("/order", userAuth, async (req, res) => {
                 throw new Error(`Product ${item.product} not found`);
             }
 
-            if(product.isDeleted){
+            if (product.isDeleted) {
                 throw new Error(`${product.name} is deleted`);
             }
 
@@ -95,11 +94,17 @@ orderRouter.post("/order", userAuth, async (req, res) => {
         await user.save({ session });
 
         //  Update Seller Orders in One Batch
-        const sellerUpdates = Object.keys(sellerOrderMap).map(sellerId =>
-            Seller.findByIdAndUpdate(sellerId, {
-                $push: { orders: { $each: sellerOrderMap[sellerId] } }
-            }, { session })
-        );
+        const sellerUpdates = Object.keys(sellerOrderMap).map(sellerId => {
+            return Seller.findById(sellerId).session(session).then(seller => {
+                if (seller) {
+                    seller.orders.push(...sellerOrderMap[sellerId]);
+
+                    seller.orders = seller.orders.slice(-20);
+
+                    return seller.save({ session });
+                }
+            });
+        });
 
         await Promise.all(sellerUpdates);
 
@@ -117,43 +122,45 @@ orderRouter.post("/order", userAuth, async (req, res) => {
 });
 
 
-orderRouter.get("/user/orders", userAuth, async (req,res)=>{
+orderRouter.get("/user/orders", userAuth, async (req, res) => {
     try {
         const user = req.user;
-        const {page=1, limit=10} = req.query;
+        const { page = 1, limit = 10 } = req.query;
 
         const orders = await Order.find({ user: user._id })
-                        .select("order._id shippingAddress totalAmount paymentMethod status createdAt ")
-                        .sort({createdAt:-1})
-                        .limit(limit*1)
-                        .skip((page-1)*limit)
-                        .populate({
-                            path:"orderItems",
-                            select: "quantity size  total status",
-                            populate:{
-                                path:"product",
-                                select: "name images price"
-                            }
-                        })
+            .select("order._id shippingAddress totalAmount paymentMethod status createdAt ")
+            .sort({ createdAt: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit)
+            .populate({
+                path: "orderItems",
+                select: "quantity size  total status",
+                populate: {
+                    path: "product",
+                    select: "name images price"
+                }
+            })
 
-        res.status(200).json({orders });
+        res.status(200).json({ orders });
 
     } catch (error) {
-        res.status(500).json({message:error.message})
+        res.status(500).json({ message: error.message })
     }
 })
 
-orderRouter.get("/user/cancel", userAuth, async (req,res)=>{
+orderRouter.patch("/user/cancel", userAuth, async (req, res) => {
     try {
         const user = req.user;
-        const {orderId, itemIds, cancelAll = false} = req.query;
-        
+        const { orderId, itemIds, cancelAll = false } = req.body;
+
         const order = await Order.findById(orderId);
-        if(!order){
-            return res.send(404).json({message:"Order not found"})
+
+
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" })
         }
-        if (order.user.toString() !== user._id.toString()){
-            return res.send(401).json({message:"You're not authorized to cancel this order"})
+        if (order.user.toString() !== user._id.toString()) {
+            return res.status(401).json({ message: "You're not authorized to cancel this order" })
         }
 
         if (order.status === "delivered") {
@@ -175,14 +182,14 @@ orderRouter.get("/user/cancel", userAuth, async (req,res)=>{
             itemsToCancel = itemIds;
         }
 
-        const existingItems = await OrderItem.find({_id:{$in:itemsToCancel}});
+        const existingItems = await OrderItem.find({ _id: { $in: itemsToCancel } });
 
-        const nonCancellableItems = existingItems.filter(item=>{
-                item.status === "delivered" || item.status === "cancelled"
+        const nonCancellableItems = existingItems.filter(item => {
+            item.status === "delivered" || item.status === "cancelled"
         }
         );
 
-        if(nonCancellableItems.length > 0){
+        if (nonCancellableItems.length > 0) {
             return res.status(400).json({
                 message: "Some items cannot be cancelled as they are already delivered or cancelled.",
                 nonCancellableItems
@@ -205,12 +212,12 @@ orderRouter.get("/user/cancel", userAuth, async (req,res)=>{
 
         await order.save();
         return res.status(200).json({ message: "Order cancelled successfully" });
-    
+
 
     } catch (error) {
-        res.status(500).send({message:error.message})
+        res.status(500).send({ message: error.message })
     }
-} )
+})
 
 orderRouter.patch("/seller/update-status", sellerAuth, async (req, res) => {
     try {
@@ -218,7 +225,7 @@ orderRouter.patch("/seller/update-status", sellerAuth, async (req, res) => {
         const { itemId, status } = req.body;
 
         // Validate request
-        if (!itemId ) {
+        if (!itemId) {
             return res.status(400).json({ message: "Invalid itemId" });
         }
         if (!["shipped", "delivered", "cancelled"].includes(status)) {
@@ -233,16 +240,16 @@ orderRouter.patch("/seller/update-status", sellerAuth, async (req, res) => {
             return res.status(404).json({ message: "No matching order found" });
         }
 
-        if(order.seller.toString() !== seller._id.toString()){
-            return res.status(403).json({message:"Unauthorized: This order does not belong to you"})
+        if (order.seller.toString() !== seller._id.toString()) {
+            return res.status(403).json({ message: "Unauthorized: This order does not belong to you" })
         }
 
-        if(order.status == status){
+        if (order.status == status) {
             return res.status(400).json({ message: "Order status is already updated" });
         }
 
         // Check if order already cancelled or delivered
-        if (order.status === 'cancelled' || order.status === 'delivered'){
+        if (order.status === 'cancelled' || order.status === 'delivered') {
             return res.status(400).json({ message: `Order is already marked as ${status}` });
         }
 

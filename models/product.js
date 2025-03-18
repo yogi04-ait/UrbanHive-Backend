@@ -18,10 +18,10 @@ const productSchema = new mongoose.Schema({
     subCategory: {
         type: String,
         enum: {
-            values: ['topwear', 'bottomwear', 'winterwear',]
+            values: ['topwear', 'bottomwear', 'winterwear', 'ethnicwear',]
         },
         validate(value) {
-            if (!["topwear", "bottomwear", "winterwear"].includes(value)) {
+            if (!["topwear", "bottomwear", "winterwear","ethnicwear"].includes(value)) {
                 throw new Error("Not a valid category")
             }
         }

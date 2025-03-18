@@ -3,7 +3,6 @@ const customerRouter = express.Router();
 const mongoose = require('mongoose')
 const { userAuth } = require('../middlewares/auth')
 const { validateAddress } = require("../utils/validator")
-const Product = require("../models/product");
 const Address = require("../models/address");
 const User = require('../models/user');
 const bcrypt = require('bcrypt')
@@ -16,7 +15,7 @@ customerRouter.patch("/edit/profile", userAuth, async (req, res) => {
         const { name, email, oldPassword, newPassword } = req.body;
         if (newPassword) {
             const isValidPassword = await user.validatePassword(oldPassword);
-            validateSignupData({ name, email, password: newPassword });
+            validateSignupData({ name, email, password: newPassword, isUpdate: true });
             if (isValidPassword) {
                 const hashedPassword = await bcrypt.hash(newPassword, 10);
                 updatedUser = await User.findByIdAndUpdate(user._id, { name, email, password: hashedPassword }, { new: true })
@@ -30,7 +29,7 @@ customerRouter.patch("/edit/profile", userAuth, async (req, res) => {
         }
         const { password: _, ...userWithoutPassword } = updatedUser.toObject();
 
-        res.status(200).json({ message: "profile updated successfully", user: userWithoutPassword })
+        res.status(200).json({ message: "profile updated successfully", data: userWithoutPassword })
 
     } catch (error) {
         res.status(500).json({ message: error.message })
@@ -41,7 +40,7 @@ customerRouter.get("/profile", userAuth, async (req, res) => {
     try {
         const user = req.user;
         const { password: _, ...userWithoutPassword } = user.toObject();
-        res.status(201).json({ message: "User fetched successfully", data: userWithoutPassword });
+        res.status(200).json({ message: "User fetched successfully", data: userWithoutPassword });
 
 
     } catch (error) {
@@ -53,7 +52,6 @@ customerRouter.get("/profile", userAuth, async (req, res) => {
 customerRouter.get("/wishlist", userAuth, async (req, res) => {
     try {
         const user = req.user;
-
         const populatedUser = await User.findById(user._id).populate("wishlist")
 
         const wishlist = populatedUser.wishlist.map(product => ({
@@ -63,7 +61,7 @@ customerRouter.get("/wishlist", userAuth, async (req, res) => {
             image: product.images[0]
         }))
 
-        res.json({ data: wishlist })
+        res.status(200).json({ data: wishlist })
 
     } catch (error) {
         res.status(500).json({ message: error.message })
@@ -159,6 +157,17 @@ customerRouter.delete("/address/:id", userAuth, async (req, res) => {
         }
         await Address.findByIdAndDelete(id)
         res.status(200).json({ message: "Address deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message })
+    }
+})
+
+customerRouter.get("/address", userAuth, async (req, res) => {
+    try {
+        const user = req.user;
+        const addresses = await Address.find({ user: user._id });
+        res.status(200).json({ message: "addresses fetched successfully", addresses: addresses })
+
     } catch (error) {
         res.status(500).json({ message: error.message })
     }

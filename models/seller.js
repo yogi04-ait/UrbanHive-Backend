@@ -53,9 +53,7 @@ sellerSchema.pre('save', function (next) {
     if (this.shopName) {
         this.shopName = this.shopName.trim().replace(/\s+/g, ' ');
     }
-    if(this.orders.length > 20){
-        this.orders = this.orders.slice(-20);
-    }
+
     next();
 })
 
@@ -66,8 +64,8 @@ sellerSchema.methods.getJWT = function () {
 }
 
 sellerSchema.methods.validatePassword = async function (userInputPassword) {
-    const user = this;
-    const isValidPassword = await bcrypt.compare(userInputPassword, user.password)
+    const seller = this;
+    const isValidPassword = await bcrypt.compare(userInputPassword, seller.password)
     return isValidPassword;
 }
 

@@ -7,10 +7,12 @@ const { sellerAuth } = require("../middlewares/auth")
 
 productRouter.get("/products", async (req, res) => {
     try {
-        const { category, subCategory, sort, page = 1, limit = 15 } = req.query;
+        const { page = 1, limit = 15, category, subCategory, sort } = req.query;
         const pageNumber = parseInt(page, 10);
         const limitNumber = parseInt(limit, 10);
+        const skip = (pageNumber - 1) * limitNumber
         let filter = {}
+
         if (category) {
             filter.category = category
         }
@@ -26,23 +28,21 @@ productRouter.get("/products", async (req, res) => {
             }
         }
 
-        const skip = (pageNumber - 1) * limitNumber
         const products = await Product.find({ ...filter, isDeleted: false })
             .sort(sortOrder)
             .skip(skip)
             .limit(limitNumber)
             .select("_id name price images")
 
-
         const totalItems = await Product.countDocuments(filter);
 
         res.status(200).json({
             data: products,
             pagination: {
-                page: pageNumber,
-                limit: limitNumber,
-                totalItems: totalItems,
-                totalPages: Math.ceil(totalItems / limitNumber)
+                currentPage: pageNumber,
+                totalPages: Math.ceil(totalItems / limitNumber),
+                totalProducts: totalItems,
+                pageSize: limitNumber,
             }
         })
 
@@ -51,6 +51,32 @@ productRouter.get("/products", async (req, res) => {
         res.status(500).json({ message: error.message })
     }
 
+})
+
+productRouter.get("/products/random", async (req, res) => {
+    try {
+        const { limit = 10 } = req.query;
+        const limitNumber = parseInt(limit, 12);
+
+        const products = await Product.aggregate([
+            { $match: { isDeleted: false } },
+            { $sample: { size: limitNumber } },
+            {
+                $project: {
+                    _id: 1,
+                    name: 1,
+                    images: 1,
+                    price: 1
+                }
+            }
+        ]);
+
+
+        res.status(200).json({ data: products });
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 })
 
 productRouter.get("/product/:id", async (req, res) => {

@@ -1,9 +1,11 @@
 const express = require('express')
 const sellerRouter = express.Router();
 const multer = require('multer');
+const { validateSignupData } = require('../utils/validator')
 const { sellerAuth } = require('../middlewares/auth');
 const Product = require("../models/product");
-const { uploadMultipleAndStore } = require("../config/cloudinaryService")
+const { uploadMultipleAndStore } = require("../config/cloudinaryService");
+const Seller = require('../models/seller');
 const storage = multer.memoryStorage({});
 const upload = multer({ storage: storage });
 
@@ -53,6 +55,34 @@ sellerRouter.post("/seller/product", sellerAuth, upload.array('images', 5), asyn
     } catch (error) {
         console.log(error)
         res.status(500).json({ error: error.message })
+    }
+})
+
+sellerRouter.patch("/seller/profile", sellerAuth, async (req, res) => {
+    try {
+        const seller = req.user;
+        let updatedSeller;
+        const { name, email, shopName, oldPassword, newPassword } = req.body;
+        validateSignupData(req, isUpdate = true, isSeller = true)
+
+        if (newPassword) {
+            const isValidPassword = await seller.validatePassword(oldPassword);
+            if (isValidPassword) {
+                const hashedPassword = await bcrypt.hash(newPassword, 10);
+                updatedSeller = await Seller.findByIdAndUpdate(seller._id, { name, email, shopName, password: hashedPassword }, { new: true })
+
+            } else {
+                return res.status(401).json({ message: "Incorrect old password" })
+            }
+        } else {
+            updatedSeller = await Seller.findByIdAndUpdate(seller._id, { name, email, shopName }, { new: true });
+        }
+        const { password: _, ...sellerWithoutPassword } = updatedSeller.toObject();
+
+        res.status(200).json({ message: "profile updated successfully", data: sellerWithoutPassword })
+
+    } catch (error) {
+        res.status(500).json({ message: error.message })
     }
 })
 
@@ -111,9 +141,32 @@ sellerRouter.put("/seller/product/:id", sellerAuth, upload.array('images', 5), a
 
 sellerRouter.get("/seller/products", sellerAuth, async (req, res) => {
     try {
+        const { page = 1, limit = 10, sortByLatest = false } = req.query;
+        const pageNumber = parseInt(page, 10);
+        const limitNumber = parseInt(limit, 10)
+        const skip = (pageNumber - 1) * limitNumber
+
         const user = req.user
-        const products = await Product.find({ seller: user._id, isDeleted: false });
-        res.status(200).json(products)
+        const totalProducts = await Product.countDocuments({ seller: user.id, isDeleted: false });
+
+        const products = await Product.find({ seller: user._id, isDeleted: false })
+            .skip(skip)
+            .limit(limitNumber);
+
+        const totalPages = Math.ceil(totalProducts / limitNumber)
+
+        res.status(200).json({
+            products,
+            pagination: {
+                currentPage: pageNumber,
+                totalPages: totalPages,
+                totalProducts: totalProducts,
+                pageSize: limitNumber
+            }
+        })
+
+
+
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
