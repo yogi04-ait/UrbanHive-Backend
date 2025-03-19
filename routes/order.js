@@ -125,13 +125,16 @@ orderRouter.post("/order", userAuth, async (req, res) => {
 orderRouter.get("/user/orders", userAuth, async (req, res) => {
     try {
         const user = req.user;
-        const { page = 1, limit = 10 } = req.query;
+        const { page = 1, limit = 5 } = req.query;
+        const pageNumber = parseInt(page, 10);
+        const limitNumber = parseInt(limit, 10);
+        const skip = (pageNumber - 1) * limitNumber
 
         const orders = await Order.find({ user: user._id })
             .select("order._id shippingAddress totalAmount paymentMethod status createdAt ")
             .sort({ createdAt: -1 })
-            .limit(limit * 1)
-            .skip((page - 1) * limit)
+            .limit(limitNumber)
+            .skip(skip)
             .populate({
                 path: "orderItems",
                 select: "quantity size  total status",
@@ -141,10 +144,60 @@ orderRouter.get("/user/orders", userAuth, async (req, res) => {
                 }
             })
 
-        res.status(200).json({ orders });
+        const totalItems = await Order.countDocuments({ user: user._id });
+
+        res.status(200).json({
+            orders: orders, pagination: {
+                currentPage: pageNumber,
+                totalPages: Math.ceil(totalItems / limitNumber),
+                totalProducts: totalItems,
+                pageSize: limitNumber,
+            }
+        });
 
     } catch (error) {
         res.status(500).json({ message: error.message })
+    }
+})
+
+orderRouter.get("/seller/orders", sellerAuth, async (req, res) => {
+    try {
+        const seller = req.user;
+        const { page = 1, limit = 10 } = req.query;
+        const pageNumber = parseInt(page, 10);
+        const limitNumber = parseInt(limit, 10);
+        const skip = (pageNumber - 1) * limitNumber;
+
+        const orders = await OrderItem.find({ seller: seller._id })
+            .select(" quantity size total productPrice status createdAt")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .populate({
+                path: "product",
+                select: "name images price"
+
+            })
+            .populate({
+                path: "order",
+                select: "shippingAddress paymentMethod isPaid"
+            })
+
+
+        const totalItems = await OrderItem.countDocuments({ seller: seller._id });
+
+
+        res.status(200).json({
+            orders: orders, pagination: {
+                currentPage: pageNumber,
+                totalPages: Math.ceil(totalItems / limitNumber),
+                totalProducts: totalItems,
+                pageSize: limitNumber,
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: error.message })
+
     }
 })
 
@@ -223,12 +276,12 @@ orderRouter.patch("/seller/update-status", sellerAuth, async (req, res) => {
     try {
         const seller = req.user;
         const { itemId, status } = req.body;
-
+        console.log(status)
         // Validate request
         if (!itemId) {
             return res.status(400).json({ message: "Invalid itemId" });
         }
-        if (!["shipped", "delivered", "cancelled"].includes(status)) {
+        if (!["shipped", "shipped", "delivered", "cancelled"].includes(status)) {
             return res.status(400).json({ message: "Invalid status update" });
         }
 
