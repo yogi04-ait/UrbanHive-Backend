@@ -1,3 +1,12 @@
+process.on("uncaughtException", (err) => {
+    console.error("🔥 Uncaught Exception: ", err);
+    process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+    console.error("⚠️ Unhandled Promise Rejection: ", reason);
+});
+
 const express = require('express')
 const app = express();
 const cors = require('cors');
@@ -11,6 +20,13 @@ const orderRouter = require("./routes/order")
 require('dotenv').config()
 app.use(express.json())
 app.use(cookieParser());
+const fs = require('fs')
+const https = require('https')
+const options = {
+    key: fs.readFileSync(process.env.SSL_KEY_PATH),
+    cert: fs.readFileSync(process.env.SSL_CERT_PATH),
+};
+
 
 
 app.use(cors({
@@ -20,9 +36,9 @@ app.use(cors({
 
 
 connectDB().then(() => {
-    app.listen(process.env.PORT, () => {
-        console.log('server is running')
-    })
+    https.createServer(options, app).listen(process.env.PORT, () => {
+        console.log(`HTTPS Server running on port ${process.env.PORT}`);
+    });
 
 }).catch(error => {
     console.log(error.message)
